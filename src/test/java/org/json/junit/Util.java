@@ -117,4 +117,36 @@ public class Util {
             );
         }
     }
+
+    /**
+     * Runs the given body on a dedicated thread with a large (8 MB) stack
+     * and returns whatever it threw. The surefire JVM runs with a small
+     * default thread stack, so deeply nested parser tests use this helper to
+     * make sure the parser's own nesting depth limit, and not the test
+     * thread's stack size, decides the outcome.
+     * @param body the code to run
+     * @return the Throwable thrown by body, or null if it completed normally
+     */
+    public static Throwable throwableFromLargeStack(final Runnable body) {
+        final Throwable[] thrown = new Throwable[1];
+        Thread worker = new Thread(null, new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    body.run();
+                } catch (Throwable t) {
+                    thrown[0] = t;
+                }
+            }
+        }, "large-stack-test", 8L * 1024L * 1024L);
+        worker.start();
+        try {
+            worker.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "Interrupted while waiting for the large stack test thread", e);
+        }
+        return thrown[0];
+    }
 }
